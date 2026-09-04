@@ -98,10 +98,34 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 
+def getProps(String propName) {
+    def propsFile = rootProject.file('local.properties')
+    if (propsFile.exists()) {
+        def props = new Properties()
+        props.load(new FileInputStream(propsFile))
+        return props[propName] != null ? props[propName].toString() : ""
+    }
+    return ""
+}
+
+def tgAppId = getProps("telegram.app_id")
+if (tgAppId.isEmpty()) {
+    tgAppId = "4"
+}
+
+def tgAppHash = getProps("telegram.app_hash")
+if (tgAppHash.isEmpty()) {
+    tgAppHash = "014b35b6184100b085b0d0572f9b5103"
+}
+
 android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
     ndkVersion "27.2.12479018"
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     sourceSets.main.jniLibs.srcDirs = ['./jni/']
 
@@ -133,10 +157,13 @@ android {
 
         multiDexEnabled true
 
+        buildConfigField "int", "APP_ID", tgAppId
+        buildConfigField "String", "APP_HASH", "\"${tgAppHash}\""
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21' //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21'
                 targets 'tmessages.49'
             }
         }
@@ -243,17 +270,6 @@ android {
     namespace 'org.telegram.messenger'
 }
 
-
-def getProps(String propName) {
-    def propsFile = rootProject.file('local.properties')
-    if (propsFile.exists()) {
-        def props = new Properties()
-        props.load(new FileInputStream(propsFile))
-        return props[propName]
-    } else {
-        return "";
-    }
-}
 apply plugin: 'com.google.gms.google-services'
 
 task checkVisibility {
