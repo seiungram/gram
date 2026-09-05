@@ -1,4 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emoji Renderer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Color Emoji', sans-serif;
+    }
+  </style>
+</head>
 <body>
+<button onclick="doThing()">Render emojis</button><br />
+
 <script>
   const EMOJI_DATA = [
   [
@@ -20,33 +36,38 @@
             ]
 ]
 </script>
-<button onclick="doThing()">Render emojis</button><br />
 <script>
-  const draw = text => {
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 66
-    const ctx = canvas.getContext('2d')
-    ctx.font = '66px AppleColorEmoji'
-    ctx.fillText(text, 0, 66 - (ctx.measureText(text)?.actualBoundingBoxDescent || 0) / 6 * 4)
-    document.body.appendChild(canvas)
-    return new Promise(resolve => canvas.toBlob(resolve))
-  }
+const draw = text => {
+  const canvas = document.createElement('canvas')
+  const size = 66
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')
 
-  async function doThing() {
-    const handle = await window.showDirectoryPicker()
-    for (let i = 0; i < EMOJI_DATA.length; ++i) {
-      for (let j = 0; j < EMOJI_DATA[i].length; ++j) {
-        const file = await handle.getFileHandle(`${i}_${j}.png`, { create: true })
-        const writable = await file.createWritable()
-        await writable.write(await draw(EMOJI_DATA[i][j]))
-        await writable.close()
-      }
+  ctx.font = '54px "Noto Color Emoji"'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, size / 2, size / 2)
+
+  document.body.appendChild(canvas)
+  return new Promise(resolve => canvas.toBlob(resolve))
+}
+
+async function doThing() {
+  const notoFont = new FontFace('NotoColorEmoji', 'url("./NotoColorEmoji.ttf")');
+  await notoFont.load();
+  document.fonts.add(notoFont);
+
+  const handle = await window.showDirectoryPicker();
+  for (let i = 0; i < EMOJI_DATA.length; ++i) {
+    for (let j = 0; j < EMOJI_DATA[i].length; ++j) {
+      const file = await handle.getFileHandle(`${i}_${j}.png`, { create: true })
+      const writable = await file.createWritable()
+      await writable.write(await draw(EMOJI_DATA[i][j]))
+      await writable.close()
     }
-    alert('done')
   }
-
-  // then do
-  // for f in *; do pngquant $f --quality 35 --speed 1 --posterize 1 --output $f -f; done
-  // for f in *; do oxipng -o max --strip all $f; done
+  alert('done')
+}
 </script>
 </body>
+</html>

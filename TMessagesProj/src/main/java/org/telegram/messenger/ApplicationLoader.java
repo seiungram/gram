@@ -32,9 +32,6 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-
 import org.json.JSONObject;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.telegram.tgnet.ConnectionsManager;
@@ -91,7 +88,7 @@ public class ApplicationLoader extends Application {
     }
 
     protected ILocationServiceProvider onCreateLocationServiceProvider() {
-        return new GoogleLocationProvider();
+        return new AndroidLocationProvider();
     }
 
     public static IMapsProvider getMapsProvider() {
@@ -102,7 +99,7 @@ public class ApplicationLoader extends Application {
     }
 
     protected IMapsProvider onCreateMapsProvider() {
-        return new GoogleMapsProvider();
+        return new OsmdroidMapsProvider();
     }
 
     public static PushListenerController.IPushListenerServiceProvider getPushProvider() {
@@ -113,7 +110,29 @@ public class ApplicationLoader extends Application {
     }
 
     protected PushListenerController.IPushListenerServiceProvider onCreatePushProvider() {
-        return PushListenerController.GooglePushListenerServiceProvider.INSTANCE;
+        return new PushListenerController.IPushListenerServiceProvider() {
+            @Override
+            public boolean hasServices() {
+                return false;
+            }
+
+            @Override
+            public String getLogTitle() {
+                return "No external push provider";
+            }
+
+            @Override
+            public void onRequestPushToken() {
+                // Push notifications are intentionally disabled in the FOSS build.
+            }
+
+            @Override
+            public int getPushType() {
+                // A null token is never registered as a usable provider, but the server
+                // still requires one of Telegram's existing provider identifiers.
+                return PushListenerController.PUSH_TYPE_FIREBASE;
+            }
+        };
     }
 
     public static String getApplicationId() {
@@ -357,18 +376,16 @@ public class ApplicationLoader extends Application {
 
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
-        }
+        boolean enabled = preferences.getBoolean("pushService", true);
         if (enabled) {
             try {
-                applicationContext.startService(new Intent(applicationContext, NotificationsService.class));
-            } catch (Throwable ignore) {
-
-            }
+                Intent intent = new Intent(applicationContext, NotificationsService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    applicationContext.startForegroundService(intent);
+                } else {
+                    applicationContext.startService(intent);
+                }
+            } catch (Throwable ignore) {}
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
         }
@@ -399,16 +416,6 @@ public class ApplicationLoader extends Application {
                 PushListenerController.sendRegistrationToServer(getPushProvider().getPushType(), null);
             }
         }, 1000);
-    }
-
-    private boolean checkPlayServices() {
-        try {
-            int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
-            return resultCode == ConnectionResult.SUCCESS;
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
-        return true;
     }
 
     private static long lastNetworkCheck = -1;
@@ -603,15 +610,16 @@ public class ApplicationLoader extends Application {
     }
 
     public static void startAppCenter(Activity context) {
-        applicationLoaderInstance.startAppCenterInternal(context);
+        // No-op for FOSS builds
     }
 
     public static void checkForUpdates() {
-        applicationLoaderInstance.checkForUpdatesInternal();
+        // TODO: handle by GitHub releases directly
     }
 
     public static void appCenterLog(Throwable e) {
-        applicationLoaderInstance.appCenterLogInternal(e);
+        // No-op or local log only
+        FileLog.e(e, false);
     }
 
     protected void appCenterLogInternal(Throwable e) {

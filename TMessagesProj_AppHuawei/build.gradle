@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-apply plugin: 'com.huawei.agconnect'
 
 repositories {
     mavenCentral()
@@ -163,5 +162,3 @@ android {
         checkReleaseBuilds false
     }
 }
-
-apply plugin: 'com.google.gms.google-services'

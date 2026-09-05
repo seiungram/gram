@@ -55,41 +55,14 @@ public class CaptchaController {
         }
         final int key = Objects.hash(currentAccount, action, key_id);
         Request r = currentRequests.get(key);
-        if (r != null) {
-            r.requestTokens.add(requestToken);
-            return;
+        if (r == null) {
+            r = new Request(currentAccount, action, key_id);
+            currentRequests.put(key, r);
         }
-        r = new Request(currentAccount, action, key_id);
         r.requestTokens.add(requestToken);
-        final Request finalRequest = r;
 
-        final Activity activity = AndroidUtilities.getActivity();
-        if (activity == null) {
-            FileLog.e("CaptchaController: no activity found");
-            finalRequest.done("RECAPTCHA_FAILED_NO_ACTIVITY");
-            return;
-        }
-
-        Recaptcha.getTasksClient(activity.getApplication(), key_id)
-            .addOnSuccessListener(client -> {
-                client.executeTask(getAction(action))
-                    .addOnSuccessListener(token -> {
-                        FileLog.d("CaptchaController: got token for {action="+action+", key_id="+key_id+"}: " + token);
-                        if (token == null) {
-                            finalRequest.done("RECAPTCHA_FAILED_TOKEN_NULL");
-                        } else {
-                            finalRequest.done(token);
-                        }
-                    })
-                    .addOnFailureListener(e -> {
-                        FileLog.e("CaptchaController: executeTask failure", e);
-                        finalRequest.done("RECAPTCHA_FAILED_TASK_EXCEPTION_" + formatException(e));
-                    });
-            })
-            .addOnFailureListener(e -> {
-                FileLog.e("CaptchaController: getTasksClient failure", e);
-                finalRequest.done("RECAPTCHA_FAILED_GETCLIENT_EXCEPTION_" + formatException(e));
-            });
+        // Fail immediately so the Telegram backend offers alternative verification (SMS/call/email)
+        r.done("RECAPTCHA_FAILED_PLAY_SERVICES_UNAVAILABLE");
     }
 
     private static RecaptchaAction getAction(String action) {
