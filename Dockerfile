@@ -33,18 +33,27 @@ RUN sdkmanager \
     "ndk;${ANDROID_NDK_VERSION}" \
     "cmake;3.22.1"
 
+# CMD mkdir -p /home/source/TMessagesProj/build/outputs/apk && \
+#     mkdir -p /home/gradle/TMessagesProj/build/outputs/bundle && \
+#     mkdir -p /home/source/TMessagesProj/build/outputs/native-debug-symbols && \
+#     cp -R /home/source/. /home/gradle && \
+#     cd /home/gradle && \
+#     gradle --parallel \
+#         :TMessagesProj_App:bundleBundleAfat_SDK23Release \
+#         :TMessagesProj_App:bundleBundleAfatRelease \
+#         :TMessagesProj_AppStandalone:assembleAfatStandalone \
+#         :TMessagesProj_App:assembleAfatRelease \
+#         :TMessagesProj_AppHuawei:assembleAfatRelease --stacktrace && \
+#     cp -R /home/gradle/TMessagesProj_App/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_AppHuawei/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_App/build/outputs/bundle/. /home/source/TMessagesProj/build/outputs/bundle
+
 CMD mkdir -p /home/source/TMessagesProj/build/outputs/apk && \
     mkdir -p /home/gradle/TMessagesProj/build/outputs/bundle && \
     mkdir -p /home/source/TMessagesProj/build/outputs/native-debug-symbols && \
     cp -R /home/source/. /home/gradle && \
     cd /home/gradle && \
     gradle --parallel \
-        :TMessagesProj_App:bundleBundleAfat_SDK23Release \
-        :TMessagesProj_App:bundleBundleAfatRelease \
-        :TMessagesProj_AppStandalone:assembleAfatStandalone \
-        :TMessagesProj_App:assembleAfatRelease \
-        :TMessagesProj_AppHuawei:assembleAfatRelease --stacktrace && \
-    cp -R /home/gradle/TMessagesProj_App/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_AppHuawei/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_App/build/outputs/bundle/. /home/source/TMessagesProj/build/outputs/bundle
+        :TMessagesProj_AppStandalone:assembleAfatStandalone --stacktrace && \
+    cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk
