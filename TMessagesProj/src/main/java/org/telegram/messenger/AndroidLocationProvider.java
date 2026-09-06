@@ -6,6 +6,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Looper;
 
 import androidx.core.util.Consumer;
 
@@ -43,8 +44,7 @@ public class AndroidLocationProvider implements ILocationServiceProvider {
         }
         try {
             return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-                    || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-                    || locationManager.isProviderEnabled(LocationManager.PASSIVE_PROVIDER);
+                    || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
         } catch (RuntimeException ignored) {
             return false;
         }
@@ -92,7 +92,8 @@ public class AndroidLocationProvider implements ILocationServiceProvider {
         long interval = Math.max(1L, locationRequest.intervalMillis);
         try {
             for (String provider : getEnabledProviders(locationRequest)) {
-                locationManager.requestLocationUpdates(provider, interval, 0f, platformListener);
+                locationManager.requestLocationUpdates(
+                        provider, interval, 0f, platformListener, Looper.getMainLooper());
             }
         } catch (SecurityException | IllegalArgumentException ignored) {
             // LocationController continues with its permission-aware platform fallback.
