@@ -34,12 +34,16 @@ import java.util.concurrent.CountDownLatch;
 @Keep
 public class PushListenerController {
     public static final int PUSH_TYPE_FIREBASE = 2,
-        PUSH_TYPE_HUAWEI = 13;
+        PUSH_TYPE_HUAWEI = 13,
+        PUSH_TYPE_SIMPLE = 4,
+        PUSH_TYPE_WEBPUSH = 10;
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
             PUSH_TYPE_FIREBASE,
-            PUSH_TYPE_HUAWEI
+            PUSH_TYPE_HUAWEI,
+            PUSH_TYPE_SIMPLE,
+            PUSH_TYPE_WEBPUSH
     })
     public @interface PushType {}
 
@@ -66,7 +70,7 @@ public class PushListenerController {
                 if (userConfig.getClientUserId() != 0) {
                     final int currentAccount = a;
                     if (sendStat) {
-                        String tag = pushType == PUSH_TYPE_FIREBASE ? "fcm" : "hcm";
+                        String tag = pushType == PUSH_TYPE_FIREBASE ? "fcm" : pushType == PUSH_TYPE_HUAWEI ? "hcm" : pushType == PUSH_TYPE_WEBPUSH ? "web" : "up";
                         TLRPC.TL_help_saveAppLog req = new TLRPC.TL_help_saveAppLog();
                         TLRPC.TL_inputAppEvent event = new TLRPC.TL_inputAppEvent();
                         event.time = SharedConfig.pushStringGetTimeStart;
@@ -93,8 +97,75 @@ public class PushListenerController {
         });
     }
 
+    /**
+     * Dual registration for UnifiedPush Web Push: a content-bearing token
+     * (token_type=10) plus a Simple Push wake-up URL (token_type=4) for
+     * payload-less pings such as encrypted chats.
+     *
+     * registerForPush is guarded by a per-account in-flight flag, so the
+     * Simple Push token goes out a few seconds after the Web Push round-trip.
+     */
+    public static void sendWebPushRegistrationToServer(String webToken, String simplePushUrl) {
+        Utilities.stageQueue.postRunnable(() -> {
+            String oldWeb = SharedConfig.upWebToken;
+            String oldSimple = SharedConfig.upSimpleToken;
+            if (!TextUtils.isEmpty(webToken)) {
+                SharedConfig.upWebToken = webToken;
+            }
+            if (!TextUtils.isEmpty(simplePushUrl)) {
+                SharedConfig.upSimpleToken = simplePushUrl;
+            }
+            SharedConfig.saveConfig();
+            // Drop tokens from a previous distributor/endpoint server-side, or
+            // Telegram keeps pushing to the stale endpoint too (ghost wake-ups).
+            if (!TextUtils.isEmpty(oldWeb) && !oldWeb.equals(webToken)) {
+                unregisterTokenOnServer(PUSH_TYPE_WEBPUSH, oldWeb);
+            }
+            if (!TextUtils.isEmpty(oldSimple) && !oldSimple.equals(simplePushUrl)) {
+                unregisterTokenOnServer(PUSH_TYPE_SIMPLE, oldSimple);
+            }
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).getClientUserId() == 0) {
+                    continue;
+                }
+                final int currentAccount = a;
+                AndroidUtilities.runOnUIThread(() -> {
+                    MessagesController.getInstance(currentAccount).registerForPush(PUSH_TYPE_WEBPUSH, webToken);
+                    Utilities.stageQueue.postRunnable(() -> AndroidUtilities.runOnUIThread(() ->
+                            MessagesController.getInstance(currentAccount).registerForPush(PUSH_TYPE_SIMPLE, simplePushUrl)), 4000);
+                });
+            }
+        });
+    }
+
+    public static void unregisterWebPush() {
+        String token = SharedConfig.upWebToken;
+        SharedConfig.upWebToken = "";
+        SharedConfig.saveConfig();
+        unregisterTokenOnServer(PUSH_TYPE_WEBPUSH, token);
+    }
+
+    public static void unregisterSimplePush() {
+        String token = SharedConfig.upSimpleToken;
+        SharedConfig.upSimpleToken = "";
+        SharedConfig.saveConfig();
+        unregisterTokenOnServer(PUSH_TYPE_SIMPLE, token);
+    }
+
+    private static void unregisterTokenOnServer(@PushType int pushType, String token) {
+        if (TextUtils.isEmpty(token)) {
+            return;
+        }
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).getClientUserId() == 0) {
+                continue;
+            }
+            MessagesController.getInstance(a).unregisterPushToken(pushType, token);
+        }
+    }
+
     public static void processRemoteMessage(@PushType int pushType, String data, long time) {
-        String tag = pushType == PUSH_TYPE_FIREBASE ? "FCM" : "HCM";
+        String tag = pushType == PUSH_TYPE_FIREBASE ? "FCM" : pushType == PUSH_TYPE_HUAWEI ? "HCM" : pushType == PUSH_TYPE_WEBPUSH ? "WEB" : "UP";
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d(tag + " PRE START PROCESSING");
         }
@@ -1644,13 +1715,21 @@ public class PushListenerController {
     }
 
     private static void onDecryptError() {
+        onPushWakeup();
+        countDownLatch.countDown();
+    }
+
+    /**
+     * Wake-up path for UnifiedPush Simple Push (token_type=4): Telegram only
+     * sends PUT version=N, no payload. Fetch updates over MTProto.
+     */
+    public static void onPushWakeup() {
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             if (UserConfig.getInstance(a).isClientActivated()) {
                 ConnectionsManager.onInternalPushReceived(a);
                 ConnectionsManager.getInstance(a).resumeNetworkMaybe();
             }
         }
-        countDownLatch.countDown();
     }
 
     @Keep
@@ -1729,6 +1808,32 @@ public class PushListenerController {
                 }
             }
             return hasServices;
+        }
+    }
+
+    public final static class UnifiedPushListenerServiceProvider implements IPushListenerServiceProvider {
+        public final static UnifiedPushListenerServiceProvider INSTANCE = new UnifiedPushListenerServiceProvider();
+
+        private UnifiedPushListenerServiceProvider() {}
+
+        @Override
+        public String getLogTitle() {
+            return "UnifiedPush";
+        }
+
+        @Override
+        public int getPushType() {
+            return PUSH_TYPE_SIMPLE;
+        }
+
+        @Override
+        public void onRequestPushToken() {
+            UnifiedPushController.registerInBackground();
+        }
+
+        @Override
+        public boolean hasServices() {
+            return UnifiedPushController.hasDistributor();
         }
     }
 }

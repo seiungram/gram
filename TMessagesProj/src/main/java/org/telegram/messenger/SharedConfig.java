@@ -215,6 +215,13 @@ public class SharedConfig {
     public static boolean pushStatSent;
     public static byte[] pushAuthKey;
     public static byte[] pushAuthKeyId;
+    public static boolean disableUnifiedPush = false;
+    public static byte[] webPushPrivateKey;
+    public static byte[] webPushPublicKey;
+    public static byte[] webPushAuthSecret;
+    public static String unifiedPushGateway = "";
+    public static String upWebToken = "";
+    public static String upSimpleToken = "";
     public static boolean forceForumTabs;
     public static boolean fastWallpaperDisabled;
     public static boolean frameMetricsEnabled;
@@ -446,6 +453,13 @@ public class SharedConfig {
                 editor.putString("pushString2", pushString);
                 editor.putInt("pushType", pushType);
                 editor.putBoolean("pushStatSent", pushStatSent);
+                editor.putBoolean("disableUnifiedPush", disableUnifiedPush);
+                editor.putString("upWebToken", upWebToken != null ? upWebToken : "");
+                editor.putString("upSimpleToken", upSimpleToken != null ? upSimpleToken : "");
+                editor.putString("unifiedPushGateway", unifiedPushGateway != null ? unifiedPushGateway : "");
+                editor.putString("webPushPrivateKey", webPushPrivateKey != null ? Base64.encodeToString(webPushPrivateKey, Base64.DEFAULT) : "");
+                editor.putString("webPushPublicKey", webPushPublicKey != null ? Base64.encodeToString(webPushPublicKey, Base64.DEFAULT) : "");
+                editor.putString("webPushAuthSecret", webPushAuthSecret != null ? Base64.encodeToString(webPushAuthSecret, Base64.DEFAULT) : "");
                 editor.putString("pushAuthKey", pushAuthKey != null ? Base64.encodeToString(pushAuthKey, Base64.DEFAULT) : "");
                 editor.putInt("lastLocalId", lastLocalId);
                 editor.putString("passportConfigJson", passportConfigJson);
@@ -501,6 +515,18 @@ public class SharedConfig {
         return value;
     }
 
+    private static byte[] decodeKey(SharedPreferences preferences, String key) {
+        try {
+            String s = preferences.getString(key, null);
+            if (!TextUtils.isEmpty(s)) {
+                return Base64.decode(s, Base64.DEFAULT);
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return null;
+    }
+
     public static void loadConfig() {
         synchronized (sync) {
             if (configLoaded || ApplicationLoader.applicationContext == null) {
@@ -525,6 +551,13 @@ public class SharedConfig {
             pushString = preferences.getString("pushString2", "");
             pushType = preferences.getInt("pushType", PushListenerController.PUSH_TYPE_FIREBASE);
             pushStatSent = preferences.getBoolean("pushStatSent", false);
+            disableUnifiedPush = preferences.getBoolean("disableUnifiedPush", false);
+            upWebToken = preferences.getString("upWebToken", "");
+            upSimpleToken = preferences.getString("upSimpleToken", "");
+            unifiedPushGateway = preferences.getString("unifiedPushGateway", "");
+            webPushPrivateKey = decodeKey(preferences, "webPushPrivateKey");
+            webPushPublicKey = decodeKey(preferences, "webPushPublicKey");
+            webPushAuthSecret = decodeKey(preferences, "webPushAuthSecret");
             passportConfigJson = preferences.getString("passportConfigJson", "");
             passportConfigHash = preferences.getInt("passportConfigHash", 0);
             storageCacheDir = preferences.getString("storageCacheDir", null);

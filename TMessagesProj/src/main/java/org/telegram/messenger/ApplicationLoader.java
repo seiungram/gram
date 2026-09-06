@@ -406,6 +406,15 @@ public class ApplicationLoader extends Application {
 
     private void initPushServices() {
         AndroidUtilities.runOnUIThread(() -> {
+            // [seiun] UP first  then Play/Huawei, then keep-alive
+            // TODO: remove fucking FCM/huawei from this project (replace FCM with UP-FCM compat)
+            if (UnifiedPushController.hasDistributor()) {
+                if (BuildVars.LOGS_ENABLED) {
+                    FileLog.d("Using UnifiedPush distributor: " + UnifiedPushController.getAckDistributor());
+                }
+                PushListenerController.UnifiedPushListenerServiceProvider.INSTANCE.onRequestPushToken();
+                return;
+            }
             if (getPushProvider().hasServices()) {
                 getPushProvider().onRequestPushToken();
             } else {
