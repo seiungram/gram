@@ -2498,6 +2498,15 @@
     <string name="NotificationsServiceInfo">Relaunch app when shut down. Enable for reliable notifications.</string>
     <string name="NotificationsServiceConnection">Background Connection</string>
     <string name="NotificationsServiceConnectionInfo">Keep a low impact background connection to Telegram for reliable notifications.</string>
+    <string name="UnifiedPush">UnifiedPush</string>
+    <string name="UnifiedPushInfo">Receive notifications via a UnifiedPush distributor app instead of Gaagle services. If they arrive reliably, you can turn off Keep-Alive Service below.</string>
+    <string name="UnifiedPushDistributor">UnifiedPush distributor</string>
+    <string name="UnifiedPushNoDistributor">No distributor installed</string>
+    <string name="UnifiedPushDisabled">UnifiedPush disabled</string>
+    <string name="UnifiedPushSelectServiceTitle">Select push service</string>
+    <string name="UnifiedPushSelectServiceMessage">You are about to select your push service. Pick the UnifiedPush distributor app to use for notifications.</string>
+    <string name="UnifiedPushGateway">UnifiedPush gateway</string>
+    <string name="UnifiedPushSync">Syncing messages</string>
     <string name="SortBy">Sort By</string>
     <string name="ImportContacts">Import Contacts</string>
     <string name="SortFirstName">First name</string>
