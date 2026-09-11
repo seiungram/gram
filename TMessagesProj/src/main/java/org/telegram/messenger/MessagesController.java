@@ -10824,7 +10824,15 @@ public class MessagesController extends BaseController implements NotificationCe
             lastPasswordCheckTime = currentTime;
         }
         if (lastPushRegisterSendTime != 0 && Math.abs(SystemClock.elapsedRealtime() - lastPushRegisterSendTime) >= 3 * 60 * 60 * 1000) {
-            PushListenerController.sendRegistrationToServer(SharedConfig.pushType, SharedConfig.pushString);
+            String webToken = SharedConfig.upWebToken;
+            String simpleToken = SharedConfig.upSimpleToken;
+            if (!TextUtils.isEmpty(webToken) && !TextUtils.isEmpty(simpleToken)) {
+                // Dual UP registration: refresh both legs, not just the globals.
+                registerForPush(PushListenerController.PUSH_TYPE_WEBPUSH, webToken,
+                        () -> registerForPush(PushListenerController.PUSH_TYPE_SIMPLE, simpleToken));
+            } else {
+                PushListenerController.sendRegistrationToServer(SharedConfig.pushType, SharedConfig.pushString);
+            }
         }
         getLocationController().update();
         checkPromoInfoInternal(false);
