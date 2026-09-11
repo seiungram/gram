@@ -37,11 +37,6 @@ android {
     sourceSets.main.jniLibs.srcDirs = ['../TMessagesProj/jni/']
     testBuildType "debug"
 
-    lintOptions {
-        disable 'MissingTranslation'
-        disable 'ExtraTranslation'
-        disable 'BlockedPrivateApi'
-    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -162,9 +157,10 @@ android {
         buildConfig = true
     }
     namespace 'org.telegram.messenger.test'
-
-    lintOptions {
+    lint {
         checkReleaseBuilds false
+        disable 'MissingTranslation', 'ExtraTranslation', 'BlockedPrivateApi'
     }
+
 }
 
