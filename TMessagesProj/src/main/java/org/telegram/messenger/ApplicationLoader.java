@@ -408,7 +408,9 @@ public class ApplicationLoader extends Application {
         AndroidUtilities.runOnUIThread(() -> {
             // [seiun] UP first  then Play/Huawei, then keep-alive
             // TODO: remove fucking FCM/huawei from this project (replace FCM with UP-FCM compat)
-            if (UnifiedPushController.hasDistributor()) {
+            // Gate on acked, not installed: an unselected distributor can't
+            // register yet, so fall through to the other providers instead.
+            if (UnifiedPushController.hasAckedDistributor()) {
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("Using UnifiedPush distributor: " + UnifiedPushController.getAckDistributor());
                 }

@@ -102,8 +102,8 @@ public class PushListenerController {
      * (token_type=10) plus a Simple Push wake-up URL (token_type=4) for
      * payload-less pings such as encrypted chats.
      *
-     * registerForPush is guarded by a per-account in-flight flag, so the
-     * Simple Push token goes out a few seconds after the Web Push round-trip.
+     * registerForPush takes one token per in-flight request, so the Simple
+     * Push leg starts from the Web Push completion callback, never a timer.
      */
     public static void sendWebPushRegistrationToServer(String webToken, String simplePushUrl) {
         Utilities.stageQueue.postRunnable(() -> {
@@ -129,11 +129,9 @@ public class PushListenerController {
                     continue;
                 }
                 final int currentAccount = a;
-                AndroidUtilities.runOnUIThread(() -> {
-                    MessagesController.getInstance(currentAccount).registerForPush(PUSH_TYPE_WEBPUSH, webToken);
-                    Utilities.stageQueue.postRunnable(() -> AndroidUtilities.runOnUIThread(() ->
-                            MessagesController.getInstance(currentAccount).registerForPush(PUSH_TYPE_SIMPLE, simplePushUrl)), 4000);
-                });
+                AndroidUtilities.runOnUIThread(() -> MessagesController.getInstance(currentAccount)
+                        .registerForPush(PUSH_TYPE_WEBPUSH, webToken, () -> MessagesController.getInstance(currentAccount)
+                                .registerForPush(PUSH_TYPE_SIMPLE, simplePushUrl)));
             }
         });
     }
@@ -1833,7 +1831,7 @@ public class PushListenerController {
 
         @Override
         public boolean hasServices() {
-            return UnifiedPushController.hasDistributor();
+            return UnifiedPushController.hasInstalledDistributor();
         }
     }
 }

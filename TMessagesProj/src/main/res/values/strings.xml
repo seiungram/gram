@@ -2499,7 +2499,7 @@
     <string name="NotificationsServiceConnection">Background Connection</string>
     <string name="NotificationsServiceConnectionInfo">Keep a low impact background connection to Telegram for reliable notifications.</string>
     <string name="UnifiedPush">UnifiedPush</string>
-    <string name="UnifiedPushInfo">Receive notifications via a UnifiedPush distributor app instead of Gaagle services. If they arrive reliably, you can turn off Keep-Alive Service below.</string>
+    <string name="UnifiedPushInfo">Receive notifications via a UnifiedPush distributor app instead of Google services. If they arrive reliably, you can turn off Keep-Alive Service below.</string>
     <string name="UnifiedPushDistributor">UnifiedPush distributor</string>
     <string name="UnifiedPushNoDistributor">No distributor installed</string>
     <string name="UnifiedPushDisabled">UnifiedPush disabled</string>

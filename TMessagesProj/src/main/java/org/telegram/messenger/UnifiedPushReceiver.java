@@ -64,6 +64,12 @@ public class UnifiedPushReceiver extends PushService {
 
                 try {
                     String distributorEndpoint = endpoint.getUrl();
+                    if (webPushPrivateKey == null || webPushPublicKey == null || webPushAuthSecret == null) {
+                        FileLog.e("UP: WebPush keys missing, scheduling retry");
+                        UnifiedPushController.scheduleRetry(false);
+                        UnifiedPushController.notifyStateChanged();
+                        return;
+                    }
                     if (BuildVars.LOGS_ENABLED) {
                         FileLog.d("UP new endpoint instance=" + instance + " url=" + distributorEndpoint);
                     }

@@ -16205,10 +16205,21 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void registerForPush(@PushListenerController.PushType int pushType, String regid) {
+        registerForPush(pushType, regid, null);
+    }
+
+    public void registerForPush(@PushListenerController.PushType int pushType, String regid, Runnable onComplete) {
+        Runnable done = () -> {
+            if (onComplete != null) {
+                AndroidUtilities.runOnUIThread(onComplete);
+            }
+        };
         if (TextUtils.isEmpty(regid) || registeringForPush || getUserConfig().getClientUserId() == 0) {
+            done.run();
             return;
         }
         if (getUserConfig().registeredForPush && regid.equals(SharedConfig.pushString)) {
+            done.run();
             return;
         }
         registeringForPush = true;
@@ -16245,7 +16256,12 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (error != null) {
                 FileLog.d("account " + currentAccount + " push registration failed, push type: " + pushType + " " + error.code + " " + error.text);
             }
-            AndroidUtilities.runOnUIThread(() -> registeringForPush = false);
+            AndroidUtilities.runOnUIThread(() -> {
+                registeringForPush = false;
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+            });
         });
     }
 

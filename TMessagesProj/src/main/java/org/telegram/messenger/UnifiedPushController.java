@@ -51,7 +51,8 @@ public class UnifiedPushController {
         return result;
     }
 
-    public static boolean hasDistributor() {
+    /** A distributor app is installed (says nothing about registration state). */
+    public static boolean hasInstalledDistributor() {
         Context context = ApplicationLoader.applicationContext;
         if (context == null || !isEnabled()) {
             return false;
@@ -62,6 +63,11 @@ public class UnifiedPushController {
             FileLog.e(e);
             return false;
         }
+    }
+
+    /** A distributor is installed and already acked us: ready to register. */
+    public static boolean hasAckedDistributor() {
+        return isEnabled() && getAckDistributor() != null;
     }
 
     public static String getAckDistributor() {
