@@ -149,11 +149,6 @@ android {
         }
     }
 
-    lintOptions {
-        disable 'MissingTranslation'
-        disable 'ExtraTranslation'
-        disable 'BlockedPrivateApi'
-    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -285,6 +280,9 @@ android {
     }
 
     namespace 'org.telegram.messenger'
+    lint {
+        disable 'MissingTranslation', 'ExtraTranslation', 'BlockedPrivateApi'
+    }
 }
 
 tasks.register("checkVisibility") {
@@ -292,7 +290,7 @@ tasks.register("checkVisibility") {
     def isPublicAllowed = !project.hasProperty("IS_PRIVATE") || !project.property("IS_PRIVATE").toBoolean()
 
     onlyIf {
-        def isPrivateBuild = taskNames.any { it.contains("HA_private") || it.contains("HA_hardcore") || it.contains("Debug") || it.contains("Release") }
+        def isPrivateBuild = taskNames.any { it.contains("HA_private") || it.contains("HA_hardcore") || it.contains("Debug") }
         if (!isPrivateBuild && !isPublicAllowed) {
             throw new GradleException("Building public version of private code!")
         }
