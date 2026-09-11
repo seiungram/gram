@@ -10824,7 +10824,15 @@ public class MessagesController extends BaseController implements NotificationCe
             lastPasswordCheckTime = currentTime;
         }
         if (lastPushRegisterSendTime != 0 && Math.abs(SystemClock.elapsedRealtime() - lastPushRegisterSendTime) >= 3 * 60 * 60 * 1000) {
-            PushListenerController.sendRegistrationToServer(SharedConfig.pushType, SharedConfig.pushString);
+            String webToken = SharedConfig.upWebToken;
+            String simpleToken = SharedConfig.upSimpleToken;
+            if (!TextUtils.isEmpty(webToken) && !TextUtils.isEmpty(simpleToken)) {
+                // Dual UP registration: refresh both legs, not just the globals.
+                registerForPush(PushListenerController.PUSH_TYPE_WEBPUSH, webToken,
+                        () -> registerForPush(PushListenerController.PUSH_TYPE_SIMPLE, simpleToken));
+            } else {
+                PushListenerController.sendRegistrationToServer(SharedConfig.pushType, SharedConfig.pushString);
+            }
         }
         getLocationController().update();
         checkPromoInfoInternal(false);
@@ -16113,8 +16121,23 @@ public class MessagesController extends BaseController implements NotificationCe
         }, ConnectionsManager.RequestFlagInvokeAfter);
     }
 
-    public void unregistedPush() {
-        if (getUserConfig().registeredForPush && SharedConfig.pushString.length() == 0) {
+    public void unregisterPushToken(@PushListenerController.PushType int pushType, String token) {
+        if (TextUtils.isEmpty(token)) {
+            return;
+        }
+        TL_account.unregisterDevice req = new TL_account.unregisterDevice();
+        req.token = token;
+        req.token_type = pushType;
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            UserConfig userConfig = UserConfig.getInstance(a);
+            if (a != currentAccount && userConfig.isClientActivated()) {
+                req.other_uids.add(userConfig.getClientUserId());
+            }
+        }
+        getConnectionsManager().sendRequest(req, null);
+    }
+
+    public void unregistedPush() {        if (getUserConfig().registeredForPush && SharedConfig.pushString.length() == 0) {
             TL_account.unregisterDevice req = new TL_account.unregisterDevice();
             req.token = SharedConfig.pushString;
             req.token_type = SharedConfig.pushType;
@@ -16149,6 +16172,11 @@ public class MessagesController extends BaseController implements NotificationCe
         }
         getUserConfig().clearConfig();
         SharedPrefsHelper.cleanupAccount(currentAccount);
+        if (UserConfig.getActivatedAccountsCount() == 0) {
+            UnifiedPushController.unregisterAll();
+            PushListenerController.unregisterWebPush();
+            PushListenerController.unregisterSimplePush();
+        }
 
         boolean shouldHandle = true;
         ArrayList<NotificationCenter.NotificationCenterDelegate> observers = getNotificationCenter().getObservers(NotificationCenter.appDidLogout);
@@ -16185,10 +16213,21 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void registerForPush(@PushListenerController.PushType int pushType, String regid) {
+        registerForPush(pushType, regid, null);
+    }
+
+    public void registerForPush(@PushListenerController.PushType int pushType, String regid, Runnable onComplete) {
+        Runnable done = () -> {
+            if (onComplete != null) {
+                AndroidUtilities.runOnUIThread(onComplete);
+            }
+        };
         if (TextUtils.isEmpty(regid) || registeringForPush || getUserConfig().getClientUserId() == 0) {
+            done.run();
             return;
         }
         if (getUserConfig().registeredForPush && regid.equals(SharedConfig.pushString)) {
+            done.run();
             return;
         }
         registeringForPush = true;
@@ -16222,8 +16261,15 @@ public class MessagesController extends BaseController implements NotificationCe
                 SharedConfig.pushString = regid;
                 SharedConfig.pushType = pushType;
                 getUserConfig().saveConfig(false);
+            } else if (error != null) {
+                FileLog.d("account " + currentAccount + " push registration failed, push type: " + pushType + " " + error.code + " " + error.text);
             }
-            AndroidUtilities.runOnUIThread(() -> registeringForPush = false);
+            AndroidUtilities.runOnUIThread(() -> {
+                registeringForPush = false;
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+            });
         });
     }
 

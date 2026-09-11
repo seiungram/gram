@@ -89,6 +89,13 @@
     <queries>
         <package android:name="com.google.android.apps.maps"/>
         <intent>
+            <action android:name="org.unifiedpush.android.distributor.REGISTER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="unifiedpush" android:host="link" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="ton"/>
         </intent>
@@ -456,6 +463,17 @@
                 android:resource="@xml/contacts" />
         </service>
 
+        <service
+            android:name=".UnifiedPushReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".UnifiedPushWakeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".KeepAliveJob"
             android:exported="false"

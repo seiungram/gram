@@ -6,7 +6,7 @@ buildscript {
         maven { url 'https://developer.huawei.com/repo/' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.10.1'
+        classpath 'com.android.tools.build:gradle:8.13.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
     }
 }
@@ -23,6 +23,15 @@ repositories {
 //   drop:  latin/optional/, maths/optional/  (~290 KB; \textbf/\textit/\mathds fall back)
 //          licences/                          (~20 KB; pure license text files)
 subprojects {
+    configurations.configureEach {
+        def tink = "com.google.crypto.tink:tink-android:1.20.0"
+        resolutionStrategy {
+            force(tink)
+            dependencySubstitution {
+                substitute module('com.google.crypto.tink:tink') using module(tink)
+            }
+        }
+    }
     plugins.withId('com.android.application') {
         android {
             androidResources {

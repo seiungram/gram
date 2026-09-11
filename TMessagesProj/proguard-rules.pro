@@ -100,6 +100,10 @@
 -keep class com.huawei.updatesdk.**{ *; }
 -keep class com.huawei.hms.**{ *; }
 
+# UnifiedPush connector (reflective parcelables, service binding)
+-keep class org.unifiedpush.android.connector.** { *; }
+-dontwarn org.unifiedpush.android.connector.**
+
 # Don't warn about checkerframework and Kotlin annotations
 -dontwarn org.checkerframework.**
 -dontwarn javax.annotation.**

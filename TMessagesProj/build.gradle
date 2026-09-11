@@ -51,6 +51,8 @@ dependencies {
     compileOnly 'org.checkerframework:checker-qual:2.5.2'
     compileOnly 'org.checkerframework:checker-compat-qual:2.5.0'
     implementation 'com.google.firebase:firebase-messaging:22.0.0'
+    implementation 'org.unifiedpush.android:connector:3.3.5'
+    implementation 'androidx.work:work-runtime:2.9.0'
     implementation 'com.google.firebase:firebase-datatransport:18.1.0'
     implementation 'com.google.firebase:firebase-appindexing:20.0.0'
     implementation 'com.google.android.gms:play-services-maps:18.1.0'
@@ -99,6 +101,17 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 
+// UnifiedPush connector depends on tink
+configurations.configureEach {
+    def tink = "com.google.crypto.tink:tink-android:1.20.0"
+    resolutionStrategy {
+        force(tink)
+        dependencySubstitution {
+            substitute module('com.google.crypto.tink:tink') using module(tink)
+        }
+    }
+}
+
 def getProps(String propName) {
     def propsFile = rootProject.file('local.properties')
     if (propsFile.exists()) {
@@ -136,11 +149,6 @@ android {
         }
     }
 
-    lintOptions {
-        disable 'MissingTranslation'
-        disable 'ExtraTranslation'
-        disable 'BlockedPrivateApi'
-    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -154,7 +162,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 36
 
-        vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
+        // vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         multiDexEnabled true
 
@@ -164,7 +172,10 @@ android {
         externalNativeBuild {
             cmake {
                 version '3.22.1'
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21'
+                arguments '-DANDROID_STL=c++_static',
+                        '-DANDROID_PLATFORM=android-21',
+                        '-DCMAKE_C_COMPILER_LAUNCHER=ccache',
+                        '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
                 targets 'tmessages.49'
             }
         }
@@ -177,7 +188,7 @@ android {
             shrinkResources false
             multiDexEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), '../TMessagesProj/proguard-rules.pro', '../TMessagesProj/proguard-rules-beta.pro'
-            ndk.debugSymbolLevel = 'FULL'
+            ndk.debugSymbolLevel = 'NONE'
             buildConfigField "String", "BUILD_VERSION_STRING", "\"" + APP_VERSION_NAME + "\""
             buildConfigField "String", "APP_CENTER_HASH", "\"\""
             buildConfigField "String", "BETA_URL", "\"" + getProps("BETA_PRIVATE_URL") + "\""
@@ -237,7 +248,7 @@ android {
 
         standalone {
             matchingFallbacks = ['release']
-            jniDebuggable false
+            jniDebuggable true
             minifyEnabled true
             multiDexEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), '../TMessagesProj/proguard-rules.pro'
@@ -257,7 +268,7 @@ android {
             shrinkResources false
             multiDexEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), '../TMessagesProj/proguard-rules.pro'
-            ndk.debugSymbolLevel = 'FULL'
+            ndk.debugSymbolLevel = 'NONE'
             buildConfigField "String", "BUILD_VERSION_STRING", "\"" + APP_VERSION_NAME + "\""
             buildConfigField "String", "APP_CENTER_HASH", "\"\""
             buildConfigField "String", "BETA_URL", "\"\""
@@ -269,26 +280,33 @@ android {
     }
 
     namespace 'org.telegram.messenger'
+    lint {
+        disable 'MissingTranslation', 'ExtraTranslation', 'BlockedPrivateApi'
+    }
 }
 
-task checkVisibility {
-    doFirst {
-        def isPrivateBuild = project.gradle.startParameter.taskNames.find {
-            it.contains("HA_private") || it.contains("HA_hardcore") || it.contains("Debug") || it.contains("Release")
-        }
-        def isPublicAllowed = !project.hasProperty("IS_PRIVATE") || !project.property("IS_PRIVATE").toBoolean()
+tasks.register("checkVisibility") {
+    def taskNames = gradle.startParameter.taskNames
+    def isPublicAllowed = !project.hasProperty("IS_PRIVATE") || !project.property("IS_PRIVATE").toBoolean()
+
+    onlyIf {
+        def isPrivateBuild = taskNames.any { it.contains("HA_private") || it.contains("HA_hardcore") || it.contains("Debug") }
         if (!isPrivateBuild && !isPublicAllowed) {
             throw new GradleException("Building public version of private code!")
         }
+        true
     }
-    doLast {
-        if (project.gradle.startParameter.taskNames.find { it.contains("HA_public") }) {
-            def privateBuild = file("${projectDir}_AppHockeyApp/afat/HA_private/Telegram-Beta.apk")
-            if (privateBuild.exists()) {
-                privateBuild.delete()
-            }
-        }
-    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.fork = true
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-options']
+    options.forkOptions.jvmArgs += [
+            '-Xms1g',
+            '-Xmx4g',
+            '-XX:+UseParallelGC'
+    ]
 }
 
 preBuild.dependsOn checkVisibility

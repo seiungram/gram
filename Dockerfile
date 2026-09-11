@@ -1,4 +1,4 @@
-FROM gradle:8.11.1-jdk17
+FROM gradle:8.14.5-jdk17-jammy
 
 ENV ANDROID_CMDLINE_TOOLS_VERSION=15859902
 ENV ANDROID_SDK_URL=https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip
@@ -23,6 +23,9 @@ RUN mkdir -p "${ANDROID_HOME}/cmdline-tools" /home/gradle/.android && \
     mv cmdline-tools "${ANDROID_HOME}/cmdline-tools/latest" && \
     rm commandlinetools.zip
 
+# ccache is referenced by CMAKE_C/CXX_COMPILER_LAUNCHER in TMessagesProj.
+RUN apt-get update && apt-get install -y ccache && rm -rf /var/lib/apt/lists/*
+
 RUN yes | sdkmanager --sdk_root="${ANDROID_HOME}" --licenses
 RUN sdkmanager \
     --sdk_root="${ANDROID_HOME}" \
@@ -33,18 +36,30 @@ RUN sdkmanager \
     "ndk;${ANDROID_NDK_VERSION}" \
     "cmake;3.22.1"
 
+# CMD mkdir -p /home/source/TMessagesProj/build/outputs/apk && \
+#     mkdir -p /home/gradle/TMessagesProj/build/outputs/bundle && \
+#     mkdir -p /home/source/TMessagesProj/build/outputs/native-debug-symbols && \
+#     cp -R /home/source/. /home/gradle && \
+#     cd /home/gradle && \
+#     gradle --parallel \
+#         :TMessagesProj_App:bundleBundleAfat_SDK23Release \
+#         :TMessagesProj_App:bundleBundleAfatRelease \
+#         :TMessagesProj_AppStandalone:assembleAfatStandalone \
+#         :TMessagesProj_App:assembleAfatRelease \
+#         :TMessagesProj_AppHuawei:assembleAfatRelease --stacktrace && \
+#     cp -R /home/gradle/TMessagesProj_App/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_AppHuawei/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
+#     cp -R /home/gradle/TMessagesProj_App/build/outputs/bundle/. /home/source/TMessagesProj/build/outputs/bundle
+
+# gradle-daemon-jvm.properties pins a local-only JDK, so it is deleted here:
+# the image provides JDK 17 and Gradle 8.11 cannot provision another one.
 CMD mkdir -p /home/source/TMessagesProj/build/outputs/apk && \
     mkdir -p /home/gradle/TMessagesProj/build/outputs/bundle && \
     mkdir -p /home/source/TMessagesProj/build/outputs/native-debug-symbols && \
     cp -R /home/source/. /home/gradle && \
     cd /home/gradle && \
+    rm -f gradle/gradle-daemon-jvm.properties && \
     gradle --parallel \
-        :TMessagesProj_App:bundleBundleAfat_SDK23Release \
-        :TMessagesProj_App:bundleBundleAfatRelease \
-        :TMessagesProj_AppStandalone:assembleAfatStandalone \
-        :TMessagesProj_App:assembleAfatRelease \
-        :TMessagesProj_AppHuawei:assembleAfatRelease --stacktrace && \
-    cp -R /home/gradle/TMessagesProj_App/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_AppHuawei/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk && \
-    cp -R /home/gradle/TMessagesProj_App/build/outputs/bundle/. /home/source/TMessagesProj/build/outputs/bundle
+        :TMessagesProj_AppStandalone:assembleAfatStandalone --stacktrace && \
+    cp -R /home/gradle/TMessagesProj_AppStandalone/build/outputs/apk/. /home/source/TMessagesProj/build/outputs/apk

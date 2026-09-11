@@ -18,14 +18,8 @@ class TestGeneratorPlugin : Plugin<Project> {
             outputDir = project.file("src/androidTest/kotlin")
         }
 
-        project.afterEvaluate {
-            project.tasks.matching {
-                val name = it.name
-                name.contains("preBuild")
-            }.configureEach {
-                println("🔗 Hooking generateTests before: ${this.name}")
-                dependsOn(generateSchemeTask)
-            }
+        project.tasks.named { it.contains("preBuild") }.configureEach {
+            dependsOn(generateSchemeTask)
         }
 
     }

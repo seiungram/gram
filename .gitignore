@@ -15,3 +15,4 @@ TMessagesProj_AppStandalone/afat/
 TMessagesProj_AppHuawei/afat/
 TMessagesProj/jni/ffmpeg/build_android
 *.ps1
+gradle/gradle-daemon-jvm.properties

@@ -31,12 +31,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
         languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_9)
         apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_9)
     }
-    incremental = false
+    // incremental = false
 }
 
 dependencies {
     implementation(gradleApi())
-    implementation("com.android.tools.build:gradle:8.10.1")
+    implementation("com.android.tools.build:gradle:8.13.2")
 
     implementation("com.squareup.moshi:moshi:1.15.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.0")

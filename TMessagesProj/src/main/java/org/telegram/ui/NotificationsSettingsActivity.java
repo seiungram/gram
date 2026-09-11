@@ -21,10 +21,12 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.LongSparseArray;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -44,8 +46,10 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
+import org.telegram.messenger.PushListenerController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UnifiedPushController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
@@ -103,6 +107,9 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
 
     private int notificationsServiceRow;
     private int notificationsServiceConnectionRow;
+    private int unifiedPushRow;
+    private int unifiedPushDistributorRow;
+    private int unifiedPushGatewayRow;
 
     private int notificationsSectionRow;
     @Keep
@@ -215,6 +222,9 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
         otherSectionRow = rowCount++;
         notificationsServiceRow = rowCount++;
         notificationsServiceConnectionRow = rowCount++;
+        unifiedPushRow = rowCount++;
+        unifiedPushDistributorRow = rowCount++;
+        unifiedPushGatewayRow = rowCount++;
         androidAutoAlertRow = -1;
         repeatRow = rowCount++;
         resetSection2Row = rowCount++;
@@ -223,6 +233,7 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
         resetNotificationsSectionRow = rowCount++;
 
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.notificationsSettingsUpdated);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.unifiedPushStateChanged);
 
         getMessagesController().reloadReactionsNotifySettings();
 
@@ -467,6 +478,7 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.notificationsSettingsUpdated);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.unifiedPushStateChanged);
     }
 
     @Override
@@ -761,6 +773,47 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
                 editor.putBoolean("pushService", !enabled);
                 editor.commit();
                 ApplicationLoader.startPushService();
+            } else if (position == unifiedPushRow) {
+                SharedConfig.disableUnifiedPush = !SharedConfig.disableUnifiedPush;
+                SharedConfig.saveConfig();
+                enabled = SharedConfig.disableUnifiedPush;
+                if (!enabled) {
+                    ensureUnifiedPushFromActivity();
+                } else {
+                    UnifiedPushController.unregisterAll();
+                    PushListenerController.sendRegistrationToServer(SharedConfig.pushType, null);
+                }
+                refreshUnifiedPushRows();
+            } else if (position == unifiedPushDistributorRow) {
+                pickUnifiedPushDistributor();
+            } else if (position == unifiedPushGatewayRow) {
+                android.app.Activity activity = getParentActivity();
+                if (activity == null) {
+                    return;
+                }
+                AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+                builder.setTitle(getString("UnifiedPushGateway", R.string.UnifiedPushGateway));
+                final EditText editText = new EditText(activity);
+                editText.setText(SharedConfig.unifiedPushGateway != null ? SharedConfig.unifiedPushGateway : "");
+                editText.setHint(UnifiedPushController.UP_GATEWAY_DEFAULT);
+                editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+                editText.setSingleLine(true);
+                int pad = dp(16);
+                FrameLayout container = new FrameLayout(activity);
+                container.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, pad, 0, pad, 0));
+                builder.setView(container);
+                builder.setPositiveButton(getString("OK", R.string.OK), (dialog, which) -> {
+                    String value = editText.getText().toString().trim();
+                    if (!value.isEmpty() && !value.endsWith("/")) {
+                        value += "/";
+                    }
+                    SharedConfig.unifiedPushGateway = value;
+                    SharedConfig.saveConfig();
+                    adapter.notifyItemChanged(unifiedPushGatewayRow);
+                    UnifiedPushController.registerInBackground();
+                });
+                builder.setNegativeButton(getString("Cancel", R.string.Cancel), null);
+                showDialog(builder.create());
             } else if (position == callsVibrateRow) {
                 if (getParentActivity() == null) {
                     return;
@@ -858,6 +911,80 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
         }
     }
 
+    private void refreshUnifiedPushRows() {
+        if (adapter == null) {
+            return;
+        }
+        if (unifiedPushRow >= 0) {
+            adapter.notifyItemChanged(unifiedPushRow);
+        }
+        if (unifiedPushDistributorRow >= 0) {
+            adapter.notifyItemChanged(unifiedPushDistributorRow);
+        }
+        if (unifiedPushGatewayRow >= 0) {
+            adapter.notifyItemChanged(unifiedPushGatewayRow);
+        }
+    }
+
+    private String getUnifiedPushDistributorLabel() {
+        if (SharedConfig.disableUnifiedPush) {
+            return getString("UnifiedPushDisabled", R.string.UnifiedPushDisabled);
+        }
+        String ack = UnifiedPushController.getAckDistributor();
+        if (ack == null) {
+            return getString("UnifiedPushNoDistributor", R.string.UnifiedPushNoDistributor);
+        }
+        try {
+            android.content.pm.PackageManager pm = ApplicationLoader.applicationContext.getPackageManager();
+            CharSequence label = pm.getApplicationLabel(pm.getApplicationInfo(ack, 0));
+            if (!TextUtils.isEmpty(label)) {
+                return label.toString();
+            }
+        } catch (Exception ignore) {
+        }
+        return ack;
+    }
+
+    private void ensureUnifiedPushFromActivity() {
+        android.app.Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        UnifiedPushController.SetupState state = UnifiedPushController.resolveSetupState(activity);
+        if (state == UnifiedPushController.SetupState.TO_SELECT) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+            builder.setTitle(getString("UnifiedPushSelectServiceTitle", R.string.UnifiedPushSelectServiceTitle));
+            builder.setMessage(getString("UnifiedPushSelectServiceMessage", R.string.UnifiedPushSelectServiceMessage));
+            builder.setPositiveButton(getString("OK", R.string.OK), (dialog, which) ->
+                    UnifiedPushController.useDefaultFromActivity(activity, this::refreshUnifiedPushRows));
+            builder.setNegativeButton(getString("Cancel", R.string.Cancel), null);
+            showDialog(builder.create());
+        } else if (state == UnifiedPushController.SetupState.FOUND) {
+            UnifiedPushController.useDefaultFromActivity(activity, this::refreshUnifiedPushRows);
+        } else {
+            Toast.makeText(activity, getString("UnifiedPushNoDistributor", R.string.UnifiedPushNoDistributor), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void pickUnifiedPushDistributor() {
+        android.app.Activity activity = getParentActivity();
+        if (activity == null || SharedConfig.disableUnifiedPush) {
+            return;
+        }
+        java.util.List<String> distributors = UnifiedPushController.getExternalDistributors(activity);
+        if (distributors.size() <= 1) {
+            ensureUnifiedPushFromActivity();
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(getString("UnifiedPushSelectServiceTitle", R.string.UnifiedPushSelectServiceTitle));
+        builder.setMessage(getString("UnifiedPushSelectServiceMessage", R.string.UnifiedPushSelectServiceMessage));
+        builder.setPositiveButton(getString("OK", R.string.OK), (dialog, which) ->
+                UnifiedPushController.pickFromActivity(activity, this::refreshUnifiedPushRows));
+        builder.setNegativeButton(getString("Cancel", R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
     private void showExceptionsAlert(int position, Runnable whenDone) {
         ArrayList<NotificationException> exceptions;
         final ArrayList<NotificationException> autoExceptions;
@@ -919,6 +1046,8 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.notificationsSettingsUpdated) {
             adapter.notifyDataSetChanged();
+        } else if (id == NotificationCenter.unifiedPushStateChanged) {
+            refreshUnifiedPushRows();
         }
     }
 
@@ -1017,6 +1146,8 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
                         checkCell.setTextAndCheck(getString("PinnedMessages", R.string.PinnedMessages), preferences.getBoolean("PinnedMessages", true), false);
                     } else if (position == androidAutoAlertRow) {
                         checkCell.setTextAndCheck("Android Auto", preferences.getBoolean("EnableAutoNotifications", false), true);
+                    } else if (position == unifiedPushRow) {
+                        checkCell.setTextAndValueAndCheck(getString("UnifiedPush", R.string.UnifiedPush), getString("UnifiedPushInfo", R.string.UnifiedPushInfo), !SharedConfig.disableUnifiedPush, true, true);
                     } else if (position == notificationsServiceRow) {
                         checkCell.setTextAndValueAndCheck(getString("NotificationsService", R.string.NotificationsService), getString("NotificationsServiceInfo", R.string.NotificationsServiceInfo), preferences.getBoolean("pushService", getMessagesController().keepAliveService), true, true);
                     } else if (position == notificationsServiceConnectionRow) {
@@ -1180,6 +1311,11 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
                         }
                         textCell.setTextAndValue(getString("RepeatNotifications", R.string.RepeatNotifications), value, updateRepeatNotifications, false);
                         updateRepeatNotifications = false;
+                    } else if (position == unifiedPushDistributorRow) {
+                        textCell.setTextAndValue(getString("UnifiedPushDistributor", R.string.UnifiedPushDistributor), getUnifiedPushDistributorLabel(), true, false);
+                    } else if (position == unifiedPushGatewayRow) {
+                        String gateway = TextUtils.isEmpty(SharedConfig.unifiedPushGateway) ? UnifiedPushController.UP_GATEWAY_DEFAULT : SharedConfig.unifiedPushGateway;
+                        textCell.setTextAndValue(getString("UnifiedPushGateway", R.string.UnifiedPushGateway), gateway, false, false);
                     }
                     break;
                 }
@@ -1201,7 +1337,7 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
                 return 0;
             } else if (position == inappSoundRow || position == inappVibrateRow || position == notificationsServiceConnectionRow ||
                     position == inappPreviewRow || position == contactJoinedRow || position == pinnedMessageRow ||
-                    position == notificationsServiceRow || position == badgeNumberMutedRow || position == badgeNumberMessagesRow ||
+                    position == notificationsServiceRow || position == unifiedPushRow || position == badgeNumberMutedRow || position == badgeNumberMessagesRow ||
                     position == badgeNumberShowRow || position == inappPriorityRow || position == inchatSoundRow ||
                     position == androidAutoAlertRow || position == accountsAllRow) {
                 return 1;
